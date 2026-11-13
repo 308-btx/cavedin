@@ -525,6 +525,7 @@ func record(i int) gateway.RequestRecord {
 }
 
 func TestEventsFollowTheDataLevel(t *testing.T) {
+	t.Skip("[cavedin] telemetry stripped: runtime events never send")
 	var mu sync.Mutex
 	var batches [][]map[string]any
 	level := "usage"
@@ -577,6 +578,7 @@ func TestEventsFollowTheDataLevel(t *testing.T) {
 }
 
 func TestEventsDropOnFailureWithoutBlocking(t *testing.T) {
+	t.Skip("[cavedin] telemetry stripped: runtime events never send")
 	var posts atomic.Int32
 	release := make(chan struct{})
 	cloud := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -764,6 +766,7 @@ func TestStatefulResponsesChainsAreNotRouted(t *testing.T) {
 // Events recorded under one login are never sent with another's credential,
 // and the new login's own data level decides.
 func TestEventsStayWithTheLoginThatRecordedThem(t *testing.T) {
+	t.Skip("[cavedin] telemetry stripped: runtime events never send")
 	var mu sync.Mutex
 	var sent []string
 	cloud := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -805,6 +808,7 @@ func TestEventsStayWithTheLoginThatRecordedThem(t *testing.T) {
 // off. The level is /me's: decisions only when /me says so, counts when /me
 // names none, and nothing at all under the CLI telemetry opt-out.
 func TestEventsFollowMeAndTheOptOut(t *testing.T) {
+	t.Skip("[cavedin] telemetry stripped: runtime events never send")
 	var mu sync.Mutex
 	var events []map[string]any
 	me := `{"data":{"level":"decisions"}}`

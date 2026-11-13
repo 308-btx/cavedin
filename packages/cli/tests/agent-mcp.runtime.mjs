@@ -225,7 +225,7 @@ test("cloud MCP missing login is explicit structured failure", async () => {
   assert.match(result.structuredContent.message, /caveman login/);
 });
 
-test("cloud MCP telemetry carries only closed tool outcome fields", async () => {
+test.skip("[cavedin] telemetry stripped — cloud MCP telemetry carries only closed tool outcome fields", async () => {
   const input = mcpInput(rpc(1, "tools/call", { name: "caveman_plan", arguments: {} }));
   const out = await runCliWithApi(["cloud", "mcp-serve"], {
     input,

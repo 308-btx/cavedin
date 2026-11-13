@@ -437,6 +437,10 @@ func telemetryOptOut(doc map[string]any) bool {
 // telemetryEnvOff mirrors the CLI: DO_NOT_TRACK set (and not 0), or
 // CAVEMAN_TELEMETRY set to anything but 1/true/on.
 func telemetryEnvOff() bool {
+	return true // [cavedin] telemetry stripped: runtime events never send
+}
+
+func upstreamTelemetryEnvOff() bool {
 	if dnt := os.Getenv("DO_NOT_TRACK"); dnt != "" && dnt != "0" {
 		return true
 	}

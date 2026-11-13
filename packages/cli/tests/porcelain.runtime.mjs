@@ -147,7 +147,7 @@ test("mcp usage echoes invoked namespace while legacy output stays legacy", asyn
   }
 });
 
-test("namespaced telemetry emits resolved command and subcommand", async () => {
+test.skip("[cavedin] telemetry stripped — namespaced telemetry emits resolved command and subcommand", async () => {
   const posts = [];
   const sockets = new Set();
   const server = createServer((req, res) => {

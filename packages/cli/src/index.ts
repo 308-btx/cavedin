@@ -851,7 +851,7 @@ currentInvocation = resolveInvocation(process.argv.slice(2));
 // gap, and the first default-on run prints the disclosure line.
 const TELEMETRY_PROMPT_VERSION = 6;
 // Supabase Edge Function; source and schema live in supabase/ at the repo root.
-const TELEMETRY_URL = "https://xvfgtprkhzlvegvmeefq.supabase.co/functions/v1/cli-telemetry";
+const TELEMETRY_URL = ""; // [cavedin] telemetry stripped: no endpoint
 const PROD_API_URL = "https://api.caveman.so";
 // Where `telemetry off` points someone who wants already-sent events deleted.
 const TELEMETRY_DELETION_URL = "https://github.com/JuliusBrussee/caveman/blob/main/SECURITY.md#delete-sent-telemetry";
@@ -902,6 +902,11 @@ async function dispatch() {
   return currentInvocation.handler(currentInvocation.argv);
 }
 
+// [cavedin] hard kill switch for all telemetry in this fork.
+const CAVEDIN_NO_TELEMETRY = true;
+// Every child this CLI spawns (proxy, caveman-blocks, hooks) inherits the opt-out.
+process.env.DO_NOT_TRACK = "1";
+process.env.CAVEMAN_TELEMETRY = "0";
 type TelemetryState = "on" | "off";
 type TelemetrySource = "env" | "config" | "runtime" | "default";
 type TelemetryRuntimeState = { state: TelemetryState; source: TelemetrySource; config: TelemetryConfig | undefined };
@@ -909,6 +914,8 @@ type TelemetryExitClass = "ok" | "error";
 type TelemetryErrorClass = "network" | "auth" | "usage" | "unknown_command" | "exec_failed" | "other";
 
 function telemetryState(): TelemetryRuntimeState {
+  // [cavedin] telemetry stripped: always off.
+  if (CAVEDIN_NO_TELEMETRY) return { state: "off", source: "env", config: telemetryConfigFromDisk() };
   const dnt = process.env.DO_NOT_TRACK;
   if (dnt !== undefined && dnt !== "" && dnt !== "0") return { state: "off", source: "env", config: telemetryConfigFromDisk() };
 
@@ -957,6 +964,7 @@ function envTruthy(v: string | undefined): boolean {
 }
 
 function telemetryEnvForcesOff(): boolean {
+  if (CAVEDIN_NO_TELEMETRY) return true; // [cavedin]
   const dnt = process.env.DO_NOT_TRACK;
   if (dnt !== undefined && dnt !== "" && dnt !== "0") return true;
   const env = process.env.CAVEMAN_TELEMETRY;
@@ -998,6 +1006,20 @@ function parseTelemetryConfig(value: unknown): TelemetryConfig | undefined {
 // default is never silent. Env kills (DO_NOT_TRACK / CAVEMAN_TELEMETRY=0) and
 // any persisted decision — including a "no" to the old v1 prompt — win.
 async function ensureTelemetryDefault() {
+  // [cavedin] persist an opt-out exactly where upstream would persist its default-on
+  // (caveman-blocks and the proxy read the decision from disk), never anywhere else.
+  if (CAVEDIN_NO_TELEMETRY) {
+    if (isHelpLikeInvocation() || currentInvocation.verb === "telemetry" || deferDisclosureToOnboarding()) return;
+    if (envTruthy(process.env.CI) || !interactive()) return;
+    const disk = telemetryConfigFromDisk();
+    if (disk?.enabled !== false) {
+      try {
+        await saveTelemetryConfig({ enabled: false, decidedAt: new Date().toISOString(), promptVersion: TELEMETRY_PROMPT_VERSION });
+        mutateRawConfig((out) => { delete out.telemetryTokens; });
+      } catch { /* read-only home: senders are no-ops anyway */ }
+    }
+    return;
+  }
   const state = telemetryState();
   await persistTelemetryEnvKill(state);
   if (isHelpLikeInvocation()) return;
@@ -1148,6 +1170,8 @@ function telemetryStatus() {
 }
 
 async function telemetryOn() {
+  // [cavedin] telemetry stripped: cannot be enabled.
+  if (CAVEDIN_NO_TELEMETRY) { print({ telemetry: "off", note: "telemetry is removed in this build" }); return; }
   const prior = telemetryConfigFromDisk();
   const anonymousId = prior?.enabled && prior.anonymousId ? prior.anonymousId : randomUUID();
   const telemetry: TelemetryConfig = {
@@ -1682,6 +1706,7 @@ function telemetryBody(events: Record<string, unknown>[]): string {
 // Sends run in a detached child so no command waits on the network at exit.
 // The child has no user-facing deadline, so it can outwait a cold endpoint.
 function emitTelemetryEvents(events: Record<string, unknown>[]): Promise<void> {
+  if (CAVEDIN_NO_TELEMETRY) return Promise.resolve(); // [cavedin]
   const body = telemetryBody(events);
   try {
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "telemetry", "send"], {
@@ -1699,6 +1724,7 @@ function emitTelemetryEvents(events: Record<string, unknown>[]): Promise<void> {
 }
 
 function postTelemetry(body: string, timeoutMs: number): Promise<void> {
+  if (CAVEDIN_NO_TELEMETRY) return Promise.resolve(); // [cavedin]
   const url = process.env.CAVEMAN_TELEMETRY_URL || TELEMETRY_URL;
   return fetch(url, {
     method: "POST",

@@ -1,0 +1,47 @@
+# [cavedin] Pull upstream main weekly, keep telemetry stripped, push only if the guard passes.
+name: cavedin sync upstream
+on:
+  schedule: [{ cron: "0 3 * * 1" }]
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+jobs:
+  sync:
+    if: github.repository == '308-btx/cavedin'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Merge upstream main
+        id: merge
+        run: |
+          git config user.name "cavedin-sync"; git config user.email "cavedin-sync@users.noreply.github.com"
+          git remote add upstream https://github.com/JuliusBrussee/caveman.git
+          git fetch upstream main
+          if git merge --no-edit upstream/main; then exit 0; fi
+          # Files the fork deleted on purpose stay deleted.
+          while read -r p; do [ -n "$p" ] && git rm -q --ignore-unmatch "$p" || true; done < cavedin/deleted-paths.txt
+          if [ -z "$(git diff --name-only --diff-filter=U)" ]; then git commit --no-edit; exit 0; fi
+          echo "conflicts=$(git diff --name-only --diff-filter=U | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          git merge --abort; exit 1
+      - name: Guard - no telemetry
+        run: ./cavedin/check-no-telemetry.sh
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - name: Build and prove nothing is sent
+        run: |
+          pnpm install --frozen-lockfile
+          cd packages/cli && pnpm run build
+          node --test --test-force-exit tests/cavedin-no-telemetry.runtime.mjs
+      - name: Push
+        run: git push origin HEAD:main
+      - name: Open issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONFLICTS: ${{ steps.merge.outputs.conflicts }}
+        run: |
+          gh issue create --title "cavedin: upstream sync blocked" \
+            --body "Upstream merge needs a human. Conflicts: ${CONFLICTS:-none (telemetry guard or build failed)}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
