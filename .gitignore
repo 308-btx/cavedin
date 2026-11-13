@@ -45,3 +45,4 @@ docs/plans/
 packages/sdk/python/build/
 packages/middleware/python/build/
 cavedin/bin/
+packages/cli/backups/
